@@ -29,51 +29,57 @@ async function getInvoice() {
     Authorization: 'Bearer' + ' ' + `${accessToken}`
   };
 
-  let response = await axios.get(INVOICE_PATH, {
-    params: paramsInvoice,
-    headers: headersConfig,
-  })
+  let branchZenfaco = [];
+  let branchFascom = [];
 
-  let data = response.data['data'].filter(
-    (invoice) => !statusValueReject.includes(invoice.status)
-  );
+  let response = await axios
+    .get(INVOICE_PATH, {
+      params: paramsInvoice,
+      headers: headersConfig,
+    })
+    .then(function (response) {
+      return response.data.data.filter(
+        (res) => !statusValueReject.includes(res.status)
+      );
+    }).catch(err => console.error(err));
 
-  let branchFascom = data.filter((invoice) =>
-    fascomInventories.includes(invoice.branchId)
-  );
 
-  let branchZenfaco = data.filter((invoice) =>
-    !fascomInventories.includes(invoice.branchId)
-  );
+  response.forEach((item) => {
+    if (fascomInventories.includes(item.branchId)) {
+      branchFascom.push(item);
+    } else {
+      branchZenfaco.push(item);
+    }
+  });
 
-  await extractDataZenfaco(branchZenfaco);
   await extractDataFascom(branchFascom);
+  await extractDataZenfaco(branchZenfaco);
 }
 
-async function extractDataZenfaco(branchZenfaco) {
-  let dataImport = [];
-
-  let response = await axios.get(
-    flexzenURL(`${ID_APP_ZENFACO}/${FLEXZEN_API_ORDERS}`)
-  );
-
-  let codeSO1Flexzen = response.data.map((flexzen) => flexzen.so_ct);
-  let codeZenfaco = branchZenfaco.map((zenfaco) => zenfaco.code);
-
-  for (var i = 0; i < codeZenfaco.length; i++) {
-    if (!codeSO1Flexzen.includes(codeZenfaco[i])) {
-      dataImport.push(branchZenfaco[i]);
-    }
-  }
+async function extractDataZenfaco(dataImport) {
+   dataImport = await axios
+     .get(flexzenURL(`${ID_APP_ZENFACO}/${FLEXZEN_API_ORDERS}`))
+     .then(function (res) {
+       return dataImport.filter(
+         (element) => !res.data.map((item) => item.so_ct).includes(element.code)
+       );
+     });
 
   let customersImport = await customersResultQuery(
     dataImport,
     `${ID_APP_ZENFACO}`
   );
-  let productsImport = await productsResultQuery(dataImport, `${ID_APP_ZENFACO}`);
+  let productsImport = await productsResultQuery(
+    dataImport,
+    `${ID_APP_ZENFACO}`
+  );
 
-  let customer_path = flexzenURL(`${ID_APP_ZENFACO}/${FLEXZEN_API_CUSTOMERS}/import/json`);
-  let product_path = flexzenURL(`${ID_APP_ZENFACO}/${FLEXZEN_API_PRODUCTS}/import/json`);
+  let customer_path = flexzenURL(
+    `${ID_APP_ZENFACO}/${FLEXZEN_API_CUSTOMERS}/import/json`
+  );
+  let product_path = flexzenURL(
+    `${ID_APP_ZENFACO}/${FLEXZEN_API_PRODUCTS}/import/json`
+  );
 
   await importDataMissing(
     customersImport,
@@ -82,30 +88,29 @@ async function extractDataZenfaco(branchZenfaco) {
     product_path
   );
 
-  return await importDataMissingConfigAxios(flexzenURL(`${ID_APP_ZENFACO}/${FLEXZEN_API_ORDERS}/import/json`),  await orderSerializer(dataImport));
+  return await importDataMissingConfigAxios(
+    flexzenURL(`${ID_APP_ZENFACO}/${FLEXZEN_API_ORDERS}/import/json`),
+    await orderSerializer(dataImport)
+  );
 }
 
-async function extractDataFascom(branchFascom) {
-  let dataImport = [];
-
-  let response = await axios.get(
-    flexzenURL(`${ID_APP_FASCOM}/${FLEXZEN_API_ORDERS}`)
-  );
-
-  let codeSO1Flexzen = response.data.map((flexzen) => flexzen.so_ct);
-  let codeZenFascom = branchFascom.map((fascom) => fascom.code);
-
-  for (var i = 0; i < codeZenFascom.length; i++) {
-    if (!codeSO1Flexzen.includes(codeZenFascom[i])) {
-      dataImport.push(branchFascom[i]);
-    }
-  }
+async function extractDataFascom(dataImport) {
+  dataImport = await axios
+    .get(flexzenURL(`${ID_APP_FASCOM}/${FLEXZEN_API_ORDERS}`))
+    .then(function (res) {
+      return dataImport.filter(
+        (element) => !res.data.map((item) => item.so_ct).includes(element.code)
+      );
+    });
 
   let customersImport = await customersResultQuery(
     dataImport,
     `${ID_APP_FASCOM}`
   );
-  let productsImport = await productsResultQuery(dataImport, `${ID_APP_FASCOM}`);
+  let productsImport = await productsResultQuery(
+    dataImport,
+    `${ID_APP_FASCOM}`
+  );
 
   let customer_path = flexzenURL(
     `${ID_APP_FASCOM}/${FLEXZEN_API_CUSTOMERS}/import/json`
@@ -191,53 +196,59 @@ function isValidCodeKiotViet(code) {
 }
 
 async function customersResultQuery(branch, branchPath) {
-  let usersArr = []
-  let ma_khArr = branch.filter(item => item.customerCode != '');
-  let response = await axios.get(
-    flexzenURL(`${branchPath}/${FLEXZEN_API_CUSTOMERS}`)
-  ).then(function (response) {
-    let intersection = ma_khArr.filter((element) =>
-      !response.data.map(res => res.ma_kh).includes(element.customerCode)
-    );
-    return intersection;
-  })
+  let usersArr = [];
+  if (typeof branch != 'undefined') {
+    let ma_khArr = branch.filter((item) => item.customerCode != '');
+    let response = await axios
+      .get(flexzenURL(`${branchPath}/${FLEXZEN_API_CUSTOMERS}`))
+      .then(function (response) {
+        let intersection = ma_khArr.filter(
+          (element) =>
+            !response.data
+              .map((res) => res.ma_kh)
+              .includes(element.customerCode)
+        );
+        return intersection;
+      });
 
-  for(let i = 0; i < response.length; i++) {
-      if(!isValidCodeKiotViet(response[i].customerCode)) {
+    for (let i = 0; i < response.length; i++) {
+      if (!isValidCodeKiotViet(response[i].customerCode)) {
         usersArr.push({
-           code: response[i].customerCode,
-           name: response[i].customerName
-         })
-      }else {
+          code: response[i].customerCode,
+          name: response[i].customerName,
+        });
+      } else {
         usersArr.push(
           await getDataKiotViet(`/customers/code/${response[i].customerCode}`)
         );
       }
+    }
   }
   return usersArr;
 }
 async function productsResultQuery(branch, branchPath) {
   let productsArr = [];
   let ma_vtArr = [];
-  branch
-    .map((element) =>
-      element.invoiceDetails.filter((res) => res.productCode != '')
-    )
-    .forEach((item) => {
-      item.map((element) => ma_vtArr.push(element));
-    });
+  if (typeof branch != 'undefined') {
+    branch
+      .map((element) =>
+        element.invoiceDetails.filter((res) => res.productCode != '')
+      )
+      .forEach((item) => {
+        item.map((element) => ma_vtArr.push(element));
+      });
 
-  let response = await axios
-    .get(flexzenURL(`${branchPath}/${FLEXZEN_API_PRODUCTS}`))
-    .then(function (response) {
-      let intersection = ma_vtArr.filter(
-        (element) =>
-          !response.data.map((res) => res.ma_vt).includes(element.productCode)
-      );
-      return intersection;
-    });
+    let response = await axios
+      .get(flexzenURL(`${branchPath}/${FLEXZEN_API_PRODUCTS}`))
+      .then(function (response) {
+        let intersection = ma_vtArr.filter(
+          (element) =>
+            !response.data.map((res) => res.ma_vt).includes(element.productCode)
+        );
+        return intersection;
+      });
 
-  for (let i = 0; i < response.length; i++) {
+    for (let i = 0; i < response.length; i++) {
       if (!isValidCodeKiotViet(response[i].productCode)) {
         productsArr.push({
           code: response[i].productCode.upcase,
@@ -245,10 +256,11 @@ async function productsResultQuery(branch, branchPath) {
           unit: 'Cái',
         });
       } else {
-          productsArr.push(
-            await getDataKiotViet(`/Products/code/${response[i].productCode}`)
-          );
+        productsArr.push(
+          await getDataKiotViet(`/Products/code/${response[i].productCode}`)
+        );
       }
+    }
   }
   return productsArr;
 }
@@ -294,43 +306,60 @@ async function customerSerializer(customers) {
 
 async function orderSerializer(orders) {
   let hash = []
-  orders.forEach((order) => {
-    let invoiceDelivery = order.invoiceDelivery in order;
-    hash.push({
-      so_ct:  order['code'],
-      ngay_ct: order['purchaseDate'],
-      ma_kh: order['customerCode'],
-      t_tt_nt: order['total'],
-      trang_thai: 0,
-      dien_giai: order['description'],
-      ma_van_don: invoiceDelivery ? order['invoiceDelivery']['deliveryCode'] : '',
-      ten_nguoi_nhan: invoiceDelivery ? order['invoiceDelivery']['receiver'] : '',
-      sdt_nguoi_nhan: invoiceDelivery ? order['invoiceDelivery']['contactNumber'] : '',
-      dia_chi_nguoi_nhan: invoiceDelivery ? order['invoiceDelivery']['address'] : '',
-      khu_vuc_nhan: invoiceDelivery ? order['invoiceDelivery']['locationId'] : '',
-      phuong_xa: invoiceDelivery ? order['invoiceDelivery']['locationName'] : '',
-      ma_kho: order['branchId'],
-      thu_ho: invoiceDelivery ? order['invoiceDelivery']['usingPriceCod'] : false,
-      don_vi_vc: invoiceDelivery ? order['invoiceDelivery']['partnerDelivery']['code'] : '',
-      ma_kenh: 'Kiotviet',
-      details: order['invoiceDetails'].map((invoice) =>
-        ({
-            ma_vt: invoice['productCode'],
-            sl_xuat: invoice['quantity'],
-            gia_ban_nt: invoice['price'],
-            ty_le_ck: invoice['discountRatio'],
-            tien_ck_nt: invoice['discount'],
-            dien_giai: invoice['note'],
-            tien_hang_nt: invoice['quantity'] * invoice['price'],
-            tien_nt: (invoice['quantity'] * invoice['price']) - invoice['discount'],
-            ma_lvt: "TP",
-            tg_tk:  true,
-            tk_vt: "1561",
-            tk_dt: "51112",
-            tk_gv: "6321"
-        }))
-    })
-  })
+  if(typeof(orders) != 'undefined') {
+    (orders || []).forEach((order) => {
+      let invoiceDelivery = order.invoiceDelivery in order;
+      hash.push({
+        so_ct: order['code'],
+        ngay_ct: order['purchaseDate'],
+        ma_kh: order['customerCode'],
+        t_tt_nt: order['total'],
+        trang_thai: 0,
+        dien_giai: order['description'],
+        ma_van_don: invoiceDelivery
+          ? order['invoiceDelivery']['deliveryCode']
+          : '',
+        ten_nguoi_nhan: invoiceDelivery
+          ? order['invoiceDelivery']['receiver']
+          : '',
+        sdt_nguoi_nhan: invoiceDelivery
+          ? order['invoiceDelivery']['contactNumber']
+          : '',
+        dia_chi_nguoi_nhan: invoiceDelivery
+          ? order['invoiceDelivery']['address']
+          : '',
+        khu_vuc_nhan: invoiceDelivery
+          ? order['invoiceDelivery']['locationId']
+          : '',
+        phuong_xa: invoiceDelivery
+          ? order['invoiceDelivery']['locationName']
+          : '',
+        ma_kho: order['branchId'],
+        thu_ho: invoiceDelivery
+          ? order['invoiceDelivery']['usingPriceCod']
+          : false,
+        don_vi_vc: invoiceDelivery
+          ? order['invoiceDelivery']['partnerDelivery']['code']
+          : '',
+        ma_kenh: 'Kiotviet',
+        details: order['invoiceDetails'].map((invoice) => ({
+          ma_vt: invoice['productCode'],
+          sl_xuat: invoice['quantity'],
+          gia_ban_nt: invoice['price'],
+          ty_le_ck: invoice['discountRatio'],
+          tien_ck_nt: invoice['discount'],
+          dien_giai: invoice['note'],
+          tien_hang_nt: invoice['quantity'] * invoice['price'],
+          tien_nt: invoice['quantity'] * invoice['price'] - invoice['discount'],
+          ma_lvt: 'TP',
+          tg_tk: true,
+          tk_vt: '1561',
+          tk_dt: '51112',
+          tk_gv: '6321',
+        })),
+      });
+    });
+  }
   return hash;
 }
 
