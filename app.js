@@ -1,5 +1,18 @@
 const axios = require('axios');
 
+const CLIENT_ID = 'd6d619fb-70ed-438e-8dcf-ed721a0e8eb3';
+const CLIENT_SERECT = '1940386095F469DE2EB5CB4EF5BE362C4C83B746';
+const ACCESS_TOKEN_PATH = 'https://id.kiotviet.vn/connect/token'
+const INVOICE_PATH = 'https://public.kiotapi.com/invoices';
+const FLEXZEN_API_ENDPOINT = 'https://api.flexzen.app';
+const FLEXZEN_API_ORDERS = 'so1';
+const FLEXZEN_API_PRODUCTS = 'dmvt';
+const FLEXZEN_API_CUSTOMERS = 'customer';
+const ACCESS_TOKEN_FLEXZEN = '8afad13054f3f80404f7363a9f43dcfd';
+const ID_APP_ZENFACO = '6166782e4d885c5f2f65caf4';
+const ID_APP_FASCOM = '61123a00c473dc38223f7047';
+const ID_APP_TEST = '6184864d27b259086e55b303';
+
 async function getAccessToken() {
   const headers = { 'Content-type': 'application/x-www-form-urlencoded' };
 
@@ -9,8 +22,10 @@ async function getAccessToken() {
     {
       headers: headers,
     }
-  );
-  return await response.data.access_token;
+  ).then(function (response) {
+    return response.data.access_token;
+  });
+  return response;
 }
 
 const paramsInvoice = {
@@ -52,8 +67,17 @@ async function getInvoice() {
     }
   });
 
-  await extractDataFascom(branchFascom);
-  await extractDataZenfaco(branchZenfaco);
+  await extractDataFascom(branchFascom)
+    .then(function (response) {
+      console.log(response);
+    })
+    .catch(err => console.error(err));
+
+  await extractDataZenfaco(branchZenfaco)
+    .then(function (response) {
+      console.log(response);
+    })
+    .catch((err) => console.error(err));
 }
 
 async function extractDataZenfaco(dataImport) {
