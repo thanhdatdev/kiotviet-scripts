@@ -32,7 +32,7 @@ const paramsInvoice = {
   includePayment: true,
   includeInvoiceDelivery: true,
   SaleChannel: true,
-  pageSize: 100,
+  pageSize: 10,
 };
 
 async function getInvoice() {
@@ -114,7 +114,7 @@ async function extractDataZenfaco(dataImport) {
 
   return await importDataMissingConfigAxios(
     flexzenURL(`${ID_APP_ZENFACO}/${FLEXZEN_API_ORDERS}/import/json`),
-    await orderSerializer(dataImport)
+    await orderSerializer(dataImport, 'Zenfaco')
   );
 }
 
@@ -152,7 +152,7 @@ async function extractDataFascom(dataImport) {
 
   return await importDataMissingConfigAxios(
     flexzenURL(`${ID_APP_FASCOM}/${FLEXZEN_API_ORDERS}/import/json`),
-    await orderSerializer(dataImport)
+    await orderSerializer(dataImport, 'Fascom')
   );
 }
 
@@ -328,17 +328,16 @@ async function customerSerializer(customers) {
   }))
 }
 
-async function orderSerializer(orders) {
+async function orderSerializer(orders, branch) {
   let hash = []
   if(typeof(orders) != 'undefined') {
     (orders || []).forEach((order) => {
       let invoiceDelivery = order.invoiceDelivery in order;
-      hash.push({
+      let serializerDefault = {
         so_ct: order['code'],
         ngay_ct: order['purchaseDate'],
         ma_kh: order['customerCode'],
         t_tt_nt: order['total'],
-        trang_thai: 0,
         dien_giai: order['description'],
         ma_van_don: invoiceDelivery
           ? order['invoiceDelivery']['deliveryCode']
@@ -381,7 +380,24 @@ async function orderSerializer(orders) {
           tk_dt: '51112',
           tk_gv: '6321',
         })),
-      });
+      };
+      if(branch === 'Zenfaco') {
+        hash.push(
+          Object.assign(serializerDefault, {
+            pt_thanh_toan: '61de7a6b5bc1556ae1e34a24',
+            ten_pt_thanh_toan: 'COD',
+            nhan_vien_giao_hang: order['branchId'],
+            trang_thai: 8,
+          })
+        );
+      }
+      else {
+        hash.push(
+          Object.assign(serializerDefault, {
+            trang_thai: 0,
+          })
+        );
+      }
     });
   }
   return hash;
