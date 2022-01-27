@@ -1,2 +1,2 @@
 # kiotviet-scripts
-# Synchronizers through API
+Synchronizers through API
